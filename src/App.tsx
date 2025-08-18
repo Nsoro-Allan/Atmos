@@ -1,14 +1,28 @@
 import React, { useState, useEffect, useRef } from 'react'
 import axios from 'axios'
-import { Map } from 'leaflet'
+import { Map, Icon } from 'leaflet'
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
 import { format } from 'date-fns'
 import { Sun, Moon, Wind, Droplets, Eye, Gauge } from 'lucide-react'
 import 'leaflet/dist/leaflet.css'
+import './App.css'
+
+// Fix for default markers in react-leaflet
+delete (Icon.Default.prototype as unknown as { _getIconUrl: unknown })._getIconUrl
+Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+})
 
 const API_KEY = import.meta.env.VITE_OPENWEATHERMAP_API_KEY
 const WEATHER_API_URL = 'https://api.openweathermap.org/data/2.5/weather'
 const FORECAST_API_URL = 'https://api.openweathermap.org/data/2.5/forecast'
+
+// Check if API key is available
+if (!API_KEY) {
+  console.error('OpenWeatherMap API key is missing. Please add VITE_OPENWEATHERMAP_API_KEY to your .env file.')
+}
 
 interface WeatherData {
   name: string
@@ -44,13 +58,13 @@ interface ForecastData {
 
 function MapUpdater({ coords }: { coords: [number, number] | null }) {
   const map = useMap()
-  
+
   useEffect(() => {
     if (coords) {
       map.setView(coords, 10)
     }
   }, [coords, map])
-  
+
   return null
 }
 
@@ -83,42 +97,73 @@ export default function App() {
   }, [])
 
   const fetchWeather = async (lat: number, lon: number) => {
+    if (!API_KEY) {
+      setError('API key is missing. Please check your configuration.')
+      return
+    }
+
     setLoading(true)
     setError('')
     try {
       const response = await axios.get(`${WEATHER_API_URL}?lat=${lat}&lon=${lon}&units=metric&appid=${API_KEY}`)
       setWeather(response.data)
-    } catch {
-      setError('Unable to fetch weather data. Please try again.')
+    } catch (err: unknown) {
+      const error = err as { response?: { status?: number } }
+      if (error.response?.status === 401) {
+        setError('Invalid API key. Please check your OpenWeatherMap API key.')
+      } else if (error.response?.status === 429) {
+        setError('API rate limit exceeded. Please try again later.')
+      } else {
+        setError('Unable to fetch weather data. Please try again.')
+      }
     }
     setLoading(false)
   }
 
   const fetchForecast = async (lat: number, lon: number) => {
+    if (!API_KEY) return
+
     try {
       const response = await axios.get(`${FORECAST_API_URL}?lat=${lat}&lon=${lon}&units=metric&appid=${API_KEY}`)
       setForecast(response.data)
-    } catch (err) {
-      console.error('Unable to fetch forecast data', err)
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } }; message?: string }
+      console.error('Unable to fetch forecast data:', error.response?.data?.message || error.message)
     }
   }
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!city.trim()) {
+      setError('Please enter a city name.')
+      return
+    }
+
+    if (!API_KEY) {
+      setError('API key is missing. Please check your configuration.')
+      return
+    }
+
     setLoading(true)
     setError('')
     try {
-      const geoResponse = await axios.get(`https://api.openweathermap.org/geo/1.0/direct?q=${city}&limit=1&appid=${API_KEY}`)
+      const geoResponse = await axios.get(`https://api.openweathermap.org/geo/1.0/direct?q=${city.trim()}&limit=1&appid=${API_KEY}`)
       if (geoResponse.data.length > 0) {
         const { lat, lon } = geoResponse.data[0]
         setCoords([lat, lon])
         await fetchWeather(lat, lon)
         await fetchForecast(lat, lon)
+        setCity('') // Clear search input after successful search
       } else {
-        setError('City not found. Please try again.')
+        setError('City not found. Please check the spelling and try again.')
       }
-    } catch {
-      setError('An error occurred. Please try again.')
+    } catch (err: unknown) {
+      const error = err as { response?: { status?: number } }
+      if (error.response?.status === 401) {
+        setError('Invalid API key. Please check your OpenWeatherMap API key.')
+      } else {
+        setError('An error occurred while searching. Please try again.')
+      }
     }
     setLoading(false)
   }
@@ -131,24 +176,35 @@ export default function App() {
     <div className={`min-h-screen ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-900'}`}>
       <div className="container mx-auto px-4 py-8">
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold"><img src="/favicon.png" style={{ width: '60px', height: '60px' }} alt="Icon" /> Advanced Weather App</h1>
-          <button onClick={toggleDarkMode} className="p-2 rounded-full bg-gray-200 text-gray-800">
+          <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-3">
+            <img src="/favicon.png" className="w-12 h-12 md:w-16 md:h-16" alt="Weather App Icon" />
+            <span>Advanced Weather App</span>
+          </h1>
+          <button
+            onClick={toggleDarkMode}
+            className={`p-2 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode
+              ? 'bg-gray-700 text-yellow-400 hover:bg-gray-600'
+              : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+              }`}
+            aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
             {darkMode ? <Sun size={24} /> : <Moon size={24} />}
           </button>
         </div>
 
         <form onSubmit={handleSearch} className="mb-8">
-          <div className="flex">
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-0">
             <input
               type="text"
               placeholder="Enter city name"
-              className="flex-grow px-4 py-2 text-gray-700 bg-white rounded-l-lg focus:outline-none"
+              className="flex-grow px-4 py-2 text-gray-700 bg-white rounded-lg sm:rounded-l-lg sm:rounded-r-none focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={city}
               onChange={(e) => setCity(e.target.value)}
+              aria-label="City name"
             />
             <button
               type="submit"
-              className="px-4 py-2 text-white bg-blue-600 rounded-r-lg hover:bg-blue-700 focus:outline-none"
+              className="px-6 py-2 text-white bg-blue-600 rounded-lg sm:rounded-l-none sm:rounded-r-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               disabled={loading}
             >
               {loading ? 'Loading...' : 'Search'}
@@ -210,9 +266,9 @@ export default function App() {
             </div>
             <div className={`rounded-lg overflow-hidden ${darkMode ? 'bg-white bg-opacity-10 backdrop-filter backdrop-blur-lg' : 'bg-white shadow-lg'}`}>
               {coords && (
-                <MapContainer 
-                  center={coords} 
-                  zoom={10} 
+                <MapContainer
+                  center={coords}
+                  zoom={10}
                   style={{ height: '100%', minHeight: '300px' }}
                   ref={mapRef}
                 >

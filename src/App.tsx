@@ -68,6 +68,14 @@ function MapUpdater({ coords }: { coords: [number, number] | null }) {
   return null
 }
 
+interface LocationSuggestion {
+  name: string
+  lat: number
+  lon: number
+  country: string
+  state?: string
+}
+
 export default function App() {
   const [city, setCity] = useState('')
   const [weather, setWeather] = useState<WeatherData | null>(null)
@@ -76,7 +84,10 @@ export default function App() {
   const [error, setError] = useState('')
   const [coords, setCoords] = useState<[number, number] | null>(null)
   const [darkMode, setDarkMode] = useState(true)
+  const [suggestions, setSuggestions] = useState<LocationSuggestion[]>([])
+  const [showSuggestions, setShowSuggestions] = useState(false)
   const mapRef = useRef<Map | null>(null)
+  const searchRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (navigator.geolocation) {
@@ -94,6 +105,17 @@ export default function App() {
     } else {
       setError('Geolocation is not supported by your browser. Please search for a city.')
     }
+  }, [])
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+        setShowSuggestions(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
   const fetchWeather = async (lat: number, lon: number) => {
@@ -130,6 +152,43 @@ export default function App() {
       const error = err as { response?: { data?: { message?: string } }; message?: string }
       console.error('Unable to fetch forecast data:', error.response?.data?.message || error.message)
     }
+  }
+
+  const fetchSuggestions = async (query: string) => {
+    if (!query.trim() || !API_KEY) {
+      setSuggestions([])
+      return
+    }
+
+    try {
+      const response = await axios.get(`https://api.openweathermap.org/geo/1.0/direct?q=${query.trim()}&limit=5&appid=${API_KEY}`)
+      setSuggestions(response.data)
+      setShowSuggestions(true)
+    } catch (err) {
+      console.error('Unable to fetch suggestions:', err)
+      setSuggestions([])
+    }
+  }
+
+  const handleCityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    setCity(value)
+    
+    if (value.trim().length > 2) {
+      fetchSuggestions(value)
+    } else {
+      setSuggestions([])
+      setShowSuggestions(false)
+    }
+  }
+
+  const handleSuggestionClick = async (suggestion: LocationSuggestion) => {
+    setCity('')
+    setSuggestions([])
+    setShowSuggestions(false)
+    setCoords([suggestion.lat, suggestion.lon])
+    await fetchWeather(suggestion.lat, suggestion.lon)
+    await fetchForecast(suggestion.lat, suggestion.lon)
   }
 
   const handleSearch = async (e: React.FormEvent) => {
@@ -193,22 +252,125 @@ export default function App() {
         </div>
 
         <form onSubmit={handleSearch} className="mb-8">
-          <div className="flex flex-col sm:flex-row gap-2 sm:gap-0">
-            <input
-              type="text"
-              placeholder="Enter city name"
-              className="flex-grow px-4 py-2 text-gray-700 bg-white rounded-lg sm:rounded-l-lg sm:rounded-r-none focus:outline-none focus:ring-2 focus:ring-blue-500"
-              value={city}
-              onChange={(e) => setCity(e.target.value)}
-              aria-label="City name"
-            />
-            <button
-              type="submit"
-              className="px-6 py-2 text-white bg-blue-600 rounded-lg sm:rounded-l-none sm:rounded-r-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              disabled={loading}
-            >
-              {loading ? 'Loading...' : 'Search'}
-            </button>
+          <div className="relative" ref={searchRef}>
+            <div className={`flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-lg transition-all duration-300 ${
+              darkMode 
+                ? 'bg-gray-800 bg-opacity-50 backdrop-filter backdrop-blur-xl border border-gray-700' 
+                : 'bg-white border border-gray-200'
+            } ${showSuggestions && suggestions.length > 0 ? 'rounded-b-none' : ''}`}>
+              <svg 
+                className={`w-5 h-5 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input
+                type="text"
+                placeholder="Search for a city..."
+                className={`flex-grow bg-transparent focus:outline-none text-base ${
+                  darkMode ? 'text-white placeholder-gray-400' : 'text-gray-900 placeholder-gray-500'
+                }`}
+                value={city}
+                onChange={handleCityChange}
+                onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+                aria-label="City name"
+                autoComplete="off"
+              />
+              {city && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCity('')
+                    setSuggestions([])
+                    setShowSuggestions(false)
+                  }}
+                  className={`p-1 rounded-full transition-colors ${
+                    darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
+                  }`}
+                  aria-label="Clear search"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+              <button
+                type="submit"
+                className="px-6 py-2 text-white bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-md hover:shadow-lg font-medium"
+                disabled={loading}
+              >
+                {loading ? (
+                  <span className="flex items-center gap-2">
+                    <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Searching
+                  </span>
+                ) : 'Search'}
+              </button>
+            </div>
+            
+            {showSuggestions && suggestions.length > 0 && (
+              <div className={`absolute z-10 w-full shadow-2xl max-h-80 overflow-y-auto rounded-b-2xl ${
+                darkMode 
+                  ? 'bg-gray-800 bg-opacity-95 backdrop-filter backdrop-blur-xl border-x border-b border-gray-700' 
+                  : 'bg-white border-x border-b border-gray-200'
+              }`}>
+                {suggestions.map((suggestion, index) => (
+                  <button
+                    key={`${suggestion.lat}-${suggestion.lon}-${index}`}
+                    type="button"
+                    onClick={() => handleSuggestionClick(suggestion)}
+                    className={`w-full text-left px-5 py-4 transition-all duration-200 border-b last:border-b-0 last:rounded-b-2xl flex items-center gap-3 group ${
+                      darkMode 
+                        ? 'border-gray-700 hover:bg-blue-600 hover:bg-opacity-20' 
+                        : 'border-gray-100 hover:bg-blue-50'
+                    }`}
+                  >
+                    <div className={`p-2 rounded-lg transition-colors ${
+                      darkMode 
+                        ? 'bg-gray-700 group-hover:bg-blue-600' 
+                        : 'bg-gray-100 group-hover:bg-blue-500'
+                    }`}>
+                      <svg 
+                        className={`w-4 h-4 ${
+                          darkMode 
+                            ? 'text-gray-400 group-hover:text-white' 
+                            : 'text-gray-600 group-hover:text-white'
+                        }`} 
+                        fill="none" 
+                        stroke="currentColor" 
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                    </div>
+                    <div className="flex-grow">
+                      <div className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                        {suggestion.name}
+                      </div>
+                      <div className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                        {suggestion.state ? `${suggestion.state}, ` : ''}{suggestion.country}
+                      </div>
+                    </div>
+                    <svg 
+                      className={`w-5 h-5 opacity-0 group-hover:opacity-100 transition-opacity ${
+                        darkMode ? 'text-blue-400' : 'text-blue-600'
+                      }`} 
+                      fill="none" 
+                      stroke="currentColor" 
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </form>
 

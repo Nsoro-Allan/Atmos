@@ -75,7 +75,7 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [coords, setCoords] = useState<[number, number] | null>(null)
-  const [darkMode, setDarkMode] = useState(false)
+  const [darkMode, setDarkMode] = useState(true)
   const mapRef = useRef<Map | null>(null)
 
   useEffect(() => {

@@ -5,3 +5,5 @@
 [build.environment]
   NODE_VERSION = "20"
   NPM_FLAGS = "--legacy-peer-deps"
+  # Allow VITE_ prefixed env vars to be included in build output
+  SECRETS_SCAN_OMIT_KEYS = "VITE_OPENWEATHERMAP_API_KEY"

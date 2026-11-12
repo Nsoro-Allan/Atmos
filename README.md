@@ -1,23 +1,37 @@
-## ☁️ Advanced Weather App
-This Advanced Weather App help show the weather with advanced designs and features.
+# Atmos · Interactive Weather
 
+A polished weather experience with **time-of-day moods**, weather particle effects, and free place search.
 
-## 🧑🏻‍💻 Technologies used:
+## Highlights
 
-- React
+- **Auto day / night / dawn / golden hour / dusk** from the *location’s* local time + sunrise/sunset (no manual toggle)
+- Dynamic backgrounds that match condition **and** period of day
+- Rain, snow, lightning, stars, sun rays, floating clouds
+- **Open-Meteo** geocoding for search (free, no key, stable)
+- OpenWeatherMap for live weather + forecast (free tier key required)
+- Map uses **free** CARTO / OpenStreetMap tiles — **no map API key**
+- Hourly + 5-day forecast, glass UI, soft transitions
 
-- TypeScript
+## Setup
 
-- Tailwindcss
+```bash
+npm install
+```
 
-## 👇🏻 Features
+Create `.env`:
 
-- Real-Time Weather Details
+```
+VITE_OPENWEATHERMAP_API_KEY=your_key_here
+```
 
-- Weekly Weather Data / 5 Days Forecast
+Free key: https://openweathermap.org/api
 
-- Modern Design
+```bash
+npm run dev
+```
 
-- Map Location Pinpointing
+## Notes
 
-- Lightmode / Darkmode view
+- First paint uses a neutral dark background (no bright gradient flash).
+- Search is powered by Open-Meteo Geocoding API — no key, good worldwide coverage.
+- Theme updates as the local clock moves (checked every minute).

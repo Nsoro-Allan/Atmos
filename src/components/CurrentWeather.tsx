@@ -40,7 +40,7 @@ function Detail({
 }
 
 function localFormat(unixUtc: number, offsetSec: number, fmt: string) {
-  // Shift so UTC components of the Date = location's local clock
+
   const d = new Date((unixUtc + offsetSec) * 1000)
 
   // Format in UTC so the browser timezone is not applied again

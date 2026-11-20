@@ -61,7 +61,6 @@ function localFormat(unixUtc: number, offsetSec: number, fmt: string) {
     })
   }
 
-  // fallback
   return format(d, fmt)
 }
 

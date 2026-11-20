@@ -43,7 +43,6 @@ function localFormat(unixUtc: number, offsetSec: number, fmt: string) {
 
   const d = new Date((unixUtc + offsetSec) * 1000)
 
-  // Format in UTC so the browser timezone is not applied again
   if (fmt === 'HH:mm') {
     return d.toLocaleTimeString('en-GB', {
       hour: '2-digit',

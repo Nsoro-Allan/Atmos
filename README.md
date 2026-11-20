@@ -1,4 +1,4 @@
-# Atmos · Interactive Weather
+# Atmos · Interactive Weather App.
 
 A polished weather experience with **time-of-day moods**, weather particle effects, and free place search.
 
